@@ -8,7 +8,11 @@ from discord.ext import commands
 
 print(myconfig.appId)
 allowableScopes = ['s3','lifetime']
-allowableGameModes = ['solo','duo','squad','solos','duos','squads']
+allowableGameModes = ['solo','duo','squad','solos','duos','squads','total']
+bot = commands.Bot(command_prefix='!',description='Fortnite Stats')
+bot.remove_command('help')
+
+
 def get_scope_str(scope):
     scope_str = " in "
     if(scope == 'lifetime'):
@@ -21,10 +25,6 @@ def check_scope(scope):
 def check_game_mode(game_mode):
     return game_mode in allowableGameModes
 
-pp = pprint.PrettyPrinter(depth=6)
-print("Starting fortnite stats bot...")
-bot = commands.Bot(command_prefix='!',description='Fortnite Stats')
-bot.remove_command('help')
 
 @bot.command(pass_context=True)
 async def help(ctx):
@@ -46,19 +46,24 @@ async def hello():
     await bot.say('Hello')
 
 @bot.command(pass_context=True)
-async def kills(ctx, user, scope, game_mode):
+async def kills(ctx, user, scope, game_mode='total'):
     if(not check_scope(scope)):
         await bot.say(scope + " is not an allowable scope. !help for options")
     elif(not check_game_mode(game_mode)):
         await bot.say(game_mode + " is not an allowable game mode. !help for options")
     else:
-        kill_stats = get_stat_dict(user, scope, game_mode,'kills')
-        amount = kill_stats['value']
-        rank = kill_stats['rank']
-        percentile = kill_stats['percentile'];
-        scopeStr = get_scope_str(scope)
-        msg = user + " has " + str(amount) + " total kills in " + game_mode + scopeStr + scope + ". This puts " + user + " in the top " +str(percentile) + " percentile, at rank " + str(rank) + "."
-        await bot.say(msg)
+        if game_mode == 'total':
+            total_kills = get_lifetime_stat('Kills', user)
+            msg = user + " has " + str(total_kills) + " total kills across all game modes for all time."
+            await bot.say(msg)
+        else:
+            kill_stats = get_stat_dict(user, scope, game_mode,'kills')
+            amount = kill_stats['value']
+            rank = kill_stats['rank']
+            percentile = kill_stats['percentile'];
+            scopeStr = get_scope_str(scope)
+            msg = user + " has " + str(amount) + " total kills in " + game_mode + scopeStr + scope + ". This puts " + user + " in the top " +str(percentile) + " percentile, at rank " + str(rank) + "."
+            await bot.say(msg)
 
 @bot.command(pass_context=True)
 async def kdr(ctx, user, scope, game_mode):
@@ -134,14 +139,22 @@ def get_stats(scope, game_mode, payload):
     statsKey = scope_dict[key]
     return stats[statsKey]
 
+def get_lifetime_stat(key, user):
+    payload = get_user_json(user)
+    lifetime_stat_dict = payload['lifeTimeStats']
+    for entry in lifetime_stat_dict:
+        if entry['key'] == key:
+            return entry['value']
+
 def get_stat_dict(user, scope, game_mode, stat):
     payload=get_user_json(user)
     statsByScope = get_stats(scope, game_mode, payload)
     return statsByScope[stat]
 
-
 def main():
     try:
+        pp = pprint.PrettyPrinter(depth=6)
+        print("Starting fortnite stats bot...")
         bot.run(myconfig.appId)
     finally:
         print('Shutting down fornite bot')
